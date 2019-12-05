@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -11,42 +10,56 @@ import (
 
 func main() {
 	lines := readLines("input.txt")
+	regex := regexp.MustCompile(`^(\w+) would (gain|lose) (\d+) happiness units by sitting next to (\w+)\.$`)
 
-	locations := make(map[string]bool)
-	distances := make(map[string]int)
+	attendees := make(map[string]bool)
+	rules := make(map[string]int)
 
-	regex := regexp.MustCompile(`^(\w+) to (\w+) = (\d+)$`)
 	for _, line := range lines {
 		match := regex.FindStringSubmatch(line)
-		locations[match[1]] = true
-		locations[match[2]] = true
-		distances[fmt.Sprintf("%s-%s", match[1], match[2])] = toInt(match[3])
-		distances[fmt.Sprintf("%s-%s", match[2], match[1])] = toInt(match[3])
+		one, direction, amount, two := match[1], match[2], toInt(match[3]), match[4]
+
+		if direction == "lose" {
+			amount = -amount
+		}
+
+		attendees[one] = true
+		attendees[two] = true
+
+		rules[fmt.Sprintf("%s-%s", one, two)] = amount
 	}
 
-	var locationsList []string
-	for location := range locations {
-		locationsList = append(locationsList, location)
-	}
-
-	routes := allPermutations(locationsList)
-
-	shortest, longest := math.MaxInt32, 0
-	for _, route := range routes {
-		distance := calculateDistance(route, distances)
-		shortest = min(distance, shortest)
-		longest = max(distance, longest)
+	var attendeeList []string
+	for attendee := range attendees {
+		attendeeList = append(attendeeList, attendee)
 	}
 
 	{
 		fmt.Println("--- Part One ---")
-		fmt.Println(shortest)
+		fmt.Println(findBestScore(attendeeList, rules))
 	}
 
 	{
 		fmt.Println("--- Part Two ---")
-		fmt.Println(longest)
+		attendeeList = append(attendeeList, "")
+		fmt.Println(findBestScore(attendeeList, rules))
 	}
+}
+
+func findBestScore(attendees []string, rules map[string]int) int {
+	bestScore := 0
+	arrangements := allPermutations(attendees)
+	for _, arrangement := range arrangements {
+		score := 0
+		for i := 0; i < len(arrangement); i++ {
+			current := arrangement[i]
+			next := arrangement[(i+1)%len(arrangement)]
+			score += rules[fmt.Sprintf("%s-%s", current, next)]
+			score += rules[fmt.Sprintf("%s-%s", next, current)]
+		}
+		bestScore = max(bestScore, score)
+	}
+	return bestScore
 }
 
 func allPermutations(values []string) (result [][]string) {
@@ -61,13 +74,6 @@ func allPermutations(values []string) (result [][]string) {
 		for _, route := range allPermutations(others) {
 			result = append(result, append(route, current))
 		}
-	}
-	return
-}
-
-func calculateDistance(route []string, distances map[string]int) (distance int) {
-	for i := 0; i+1 < len(route); i++ {
-		distance += distances[fmt.Sprintf("%s-%s", route[i], route[i+1])]
 	}
 	return
 }
@@ -96,13 +102,6 @@ func check(err error) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func min(x, y int) int {
-	if y < x {
-		return y
-	}
-	return x
 }
 
 func max(x, y int) int {
